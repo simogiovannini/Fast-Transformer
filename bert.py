@@ -1,24 +1,39 @@
-from torch.utils.data import DataLoader
-from dataset import BERTDataset, load_raw_sentences
-from tokenizer import load_tokenizer
+import torch.nn as nn
+from embedding import EmbeddingLayer
+from feed_forward import FeedForwardLayer
+from multi_head_attention import MultiHeadAttentionLayer
 
-TOKENIZER_BATCH_SIZE = 256  # Batch-size to train the tokenizer on
-TOKENIZER_VOCABULARY = 25000  # Total number of unique subwords the tokenizer can have
 
-MAX_LENGTH = 512  # Maximum number of tokens in an input sample after padding
+class EncoderLayer(nn.Module):
 
-TRAIN_BATCH_SIZE = 2  # Batch-size for pretraining the model on
-TRAIN_EPOCHS = 1  # Maximum number of epochs to train the model for
-LEARNING_RATE = 1e-4  # Learning rate for training the model
+    def __init__(self, d_model, h, d_ff, dropout):
+        super().__init__()
+        self.mha = MultiHeadAttentionLayer(d_model, h, dropout)
+        self.norm1 = nn.LayerNorm(d_model)
+        self.linear = FeedForwardLayer(d_model, d_ff, dropout)
+        self.norm2 = nn.LayerNorm(d_model)
 
-tokenizer = load_tokenizer(TOKENIZER_BATCH_SIZE, TOKENIZER_VOCABULARY)
+    def forward(self, x, mask):
+        x_att = self.mha(x, mask)
+        x = self.norm1(x + x_att)
+        x_ff = self.linear(x)
+        x = self.norm2(x + x_ff)
+        return x
 
-sentences = load_raw_sentences()
 
-dataset = BERTDataset(sentences, tokenizer, MAX_LENGTH)
+class BERTModel(nn.Module):
 
-train_loader = DataLoader(dataset, batch_size=1, shuffle=True, pin_memory=True)
+    def __init__(self, vocab_size, d_model, seq_len, n_layers, h, d_ff, dropout):
+        super().__init__()
+        self.embedding = EmbeddingLayer(vocab_size, d_model, seq_len, dropout)
+        self.encoder_layers = nn.ModuleList([EncoderLayer(d_model, h, d_ff, dropout) for _ in range(n_layers)])
 
-sample_data = next(iter(train_loader))
 
-print(sample_data)
+    def forward(self, x, mask):
+        mask = (x > 0).unsqueeze(1).repeat(1, x.size(1), 1).unsqueeze(1)
+
+        x = self.embedding(x)
+
+        for encoder in self.encoder_layers:
+            x = encoder.forward(x, mask)
+        return x

@@ -40,6 +40,7 @@ class BERTDataset(Dataset):
         # Adding PAD token for labels
         s_random = [self.tokenizer.vocab['[CLS]']] + s_random + [self.tokenizer.vocab['[SEP]']]
         s_label = [self.tokenizer.vocab['[PAD]']] + s_label + [self.tokenizer.vocab['[PAD]']]
+        mask = [1 for _ in range(len(s_random))]
 
         # Step 4: combine sentence 1 and 2 as one input
         # adding PAD tokens to make the sentence same length as seq_len
@@ -49,9 +50,11 @@ class BERTDataset(Dataset):
 
         s_random.extend(padding)
         s_label.extend(padding)
+        mask.extend(padding)
 
-        output = {"bert_input": s_random,
-                  "bert_label": s_label,
+        output = {'bert_input': s_random,
+                  'bert_label': s_label,
+                  'attention_mask': mask,
                 }
 
         return {key: torch.tensor(value) for key, value in output.items()}
