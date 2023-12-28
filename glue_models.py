@@ -1,11 +1,11 @@
 import copy
 import torch
 import torch.nn as nn
-from dataset import Dataset
+from torch.utils.data import Dataset
 
 
 class OneSentenceModel(nn.Module):
-    def __init__(self, pretrained_model, n_classes, n_hidden):
+    def __init__(self, pretrained_model, n_classes, n_hidden=1024):
         super().__init__()
         self.bert = copy.deepcopy(pretrained_model)
         self.linear1 = nn.Linear(pretrained_model.encoder_layers[0].linear.linear1.in_features, n_hidden)
@@ -22,14 +22,16 @@ class OneSentenceModel(nn.Module):
     
 
 class TwoSentencesModel(nn.Module):
-    def __init__(self, pretrained_model, n_classes, n_hidden):
+    def __init__(self, pretrained_model, n_classes, n_hidden=1024):
         super().__init__()
         self.bert = copy.deepcopy(pretrained_model)
         self.linear1 = nn.Linear(2 * pretrained_model.encoder_layers[0].linear.linear1.in_features, n_hidden)
         self.relu = nn.ReLU()
         self.linear2 = nn.Linear(n_hidden, n_classes)
     
-    def forward(self, s1, s2):
+    def forward(self, s):
+        s1 = s[0]
+        s2 = s[1]
         s1 = self.bert(s1)
         s1 = s1[:, 0, :]
         s2 = self.bert(s2)
@@ -62,7 +64,12 @@ class OneSentenceDataset(Dataset):
         padding = [self.tokenizer.vocab['[PAD]'] for _ in range(self.seq_len - len(sentence))]
         sentence = sentence + padding
 
-        return sentence, label
+        return torch.tensor(sentence), torch.tensor(label)
+    
+    def get_n_classes(self):
+        column_names = list(self.dataset.features.keys())
+        label_key = column_names[1]
+        return len(set(self.dataset[label_key]))
 
 
 
@@ -91,6 +98,11 @@ class TwoSentencesDataset(Dataset):
 
         sentence2 = self.tokenizer(sentence2)['input_ids']
         padding = [self.tokenizer.vocab['[PAD]'] for _ in range(self.seq_len - len(sentence2))]
-        sentence2 = sentence1 + padding
+        sentence2 = sentence2 + padding
 
-        return sentence1, sentence2, label
+        return (torch.tensor(sentence1), torch.tensor(sentence2)), torch.tensor(label)
+
+    def get_n_classes(self):
+        column_names = list(self.dataset.features.keys())
+        label_key = column_names[2]
+        return len(set(self.dataset[label_key]))
