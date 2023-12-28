@@ -42,7 +42,8 @@ class EmbeddingLayer(torch.nn.Module):
         self.token = TokenEmbedding(d_model, vocab_size)
         self.position = PositionalEmbedding(d_model, seq_len)
         self.dropout = torch.nn.Dropout(dropout)
+        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
        
     def forward(self, sequence):
-        x = self.token(sequence) + self.position(sequence)
+        x = self.token(sequence) + self.position(sequence).to(self.device)
         return self.dropout(x)

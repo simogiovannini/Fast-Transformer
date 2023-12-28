@@ -12,9 +12,9 @@ def load_raw_sentences():
     dataset = load_dataset('wikitext', 'wikitext-2-v1')
     all_valid_texts = [txt for k in dataset.keys() for txt in dataset[k]['text'] if len(txt) > 0 and not txt.startswith(" =")]
 
-    single_sentences = [s for sent in all_valid_texts for s in tok.tokenize(sent) if len(s) < 510]
-    full_sentences = [sent for sent in all_valid_texts if len(sent) < 510]
-    return single_sentences + full_sentences
+    single_sentences = [s for sent in all_valid_texts for s in tok.tokenize(sent) if len(s) < 125]
+    full_sentences = [sent for sent in all_valid_texts if len(sent) < 125]
+    return (single_sentences + full_sentences)
 
 
 class BERTDataset(Dataset):
@@ -40,7 +40,6 @@ class BERTDataset(Dataset):
         # Adding PAD token for labels
         s_random = [self.tokenizer.vocab['[CLS]']] + s_random + [self.tokenizer.vocab['[SEP]']]
         s_label = [self.tokenizer.vocab['[PAD]']] + s_label + [self.tokenizer.vocab['[PAD]']]
-        mask = [1 for _ in range(len(s_random))]
 
         # Step 4: combine sentence 1 and 2 as one input
         # adding PAD tokens to make the sentence same length as seq_len
@@ -50,11 +49,9 @@ class BERTDataset(Dataset):
 
         s_random.extend(padding)
         s_label.extend(padding)
-        mask.extend(padding)
 
         output = {'bert_input': s_random,
                   'bert_label': s_label,
-                  'attention_mask': mask,
                 }
 
         return {key: torch.tensor(value) for key, value in output.items()}

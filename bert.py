@@ -28,8 +28,7 @@ class BERTModel(nn.Module):
         self.embedding = EmbeddingLayer(vocab_size, d_model, seq_len, dropout)
         self.encoder_layers = nn.ModuleList([EncoderLayer(d_model, h, d_ff, dropout) for _ in range(n_layers)])
 
-
-    def forward(self, x, mask):
+    def forward(self, x):
         mask = (x > 0).unsqueeze(1).repeat(1, x.size(1), 1).unsqueeze(1)
 
         x = self.embedding(x)
@@ -37,3 +36,19 @@ class BERTModel(nn.Module):
         for encoder in self.encoder_layers:
             x = encoder.forward(x, mask)
         return x
+    
+
+class TokenPredictionHead(nn.Module):
+
+    def __init__(self, vocab_size, d_model, seq_len, n_layers, h, d_ff, dropout):
+        super().__init__()
+        self.bert = BERTModel(vocab_size, d_model, seq_len, n_layers, h, d_ff, dropout)
+        self.linear = nn.Linear(d_model, vocab_size)
+        self.log_softmax = nn.LogSoftmax(2)
+    
+    def forward(self, x):
+        x = self.bert(x)
+        x = self.linear(x)
+        x = self.log_softmax(x)
+        return x
+    
