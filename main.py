@@ -1,8 +1,8 @@
 import os
 import torch
 from torch.utils.data import DataLoader
-from bert import BERTModel, TokenPredictionHead
-from dataset import BERTDataset, load_raw_sentences
+from bert import TokenPredictionHead
+from dataset import load_dataset
 from tokenizer import load_tokenizer
 from torch.optim import Adam
 
@@ -29,9 +29,7 @@ LEARNING_RATE = 1e-4  # Learning rate for training the model
 
 tokenizer = load_tokenizer(TOKENIZER_BATCH_SIZE, TOKENIZER_VOCABULARY) 
 
-sentences = load_raw_sentences()
-
-dataset = BERTDataset(sentences, tokenizer, MAX_LENGTH)
+dataset = load_dataset('./datasets/pretraining_dataset.pt')
 
 train_loader = DataLoader(dataset, batch_size=TRAIN_BATCH_SIZE, shuffle=True, pin_memory=True)
 
@@ -52,11 +50,11 @@ for epoch in range(TRAIN_EPOCHS):
         if i % 50 == 0:
             print(f'EP {epoch}: batch {i}/{len(train_loader)}')
 
-        data = {key: value.to(DEVICE) for key, value in data.items()}
+        features, labels = data[0].to(DEVICE), data[1].to(DEVICE)
 
-        output = model.forward(data['bert_input'])
+        output = model.forward(labels)
 
-        loss = criterion(output.transpose(1, 2), data['bert_label'])
+        loss = criterion(output.transpose(1, 2), labels)
 
         optim.zero_grad()
         loss.backward()
