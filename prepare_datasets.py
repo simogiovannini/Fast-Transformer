@@ -6,6 +6,70 @@ from tokenizer import load_tokenizer
 import torch
 
 
+def tokenize_sentence(sentence, seq_len, tokenizer):
+    tokens = tokenizer(sentence)
+    tokens = tokens[1:-1]
+
+    if len(tokens) > (seq_len - 2):
+            tokens = tokens[:seq_len - 2]
+        
+    tokens = [tokenizer.vocab['[CLS]']] + tokens + [tokenizer.vocab['[SEP]']]
+    tokens = pad_sentence(tokens, tokenizer, seq_len)
+    return torch.tensor(tokens)
+
+
+def create_glue_dataset(path, seq_len, tokenizer, task_name):
+    GLUE_TASKS = {'cola': [1, 'validation'],
+              'mnli': [2, 'validation_matched'],
+              'mrpc': [2, 'validation'],
+              'qnli': [2, 'validation'],
+              'qqp': [2, 'validation'],
+              'rte': [2, 'validation'],
+              'sst2': [1, 'validation'],
+              'stsb': [2, 'validation'],
+              'wnli': [2, 'validation']
+              }
+    
+    print(f'Preparing {task_name} datasets...')
+    
+    n_sentences_task = GLUE_TASKS[task_name][0]
+    test_dataset_name = GLUE_TASKS[task_name][1]
+
+    dataset = load_dataset('glue', task_name)
+    train_dataset = dataset['train']
+    test_dataset = dataset[test_dataset_name]
+    
+    if task_name == 'wnli':
+        n_classes = 5
+    else:
+        n_classes = len(train_dataset.features['label'].names)
+    
+    column_names = [name for name in train_dataset[0].keys()]
+
+    if n_sentences_task == 1:
+        sentence_key, label_key = column_names[0], column_names[1]
+        
+        sentences = []
+        labels = []
+
+        for row in train_dataset:
+            sentence = row[sentence_key]
+            label = row[label_key]
+            tokenized_sentence = tokenize_sentence(sentence, seq_len, tokenizer)
+
+            sentences.append(tokenized_sentence)
+            labels.append(torch.tensor(label))
+        
+        dataset = (sentences, labels)
+        dataset = OneSentenceDataset(dataset, n_classes)
+        print(len(dataset))
+        
+    elif n_sentences_task == 2:
+         sentence1_key, sentence2_key, label_key = column_names[0], column_names[1], column_names[2]
+         print(len(train_dataset))
+    pass
+
+
 def pad_sentence(tokens, tokenizer, seq_len):
     pad_token = tokenizer.vocab['[PAD]']
     pad_len = seq_len - len(tokens)
@@ -83,4 +147,14 @@ if not os.path.exists(PATH):
 
 tokenizer = load_tokenizer(TOKENIZER_BATCH_SIZE, TOKENIZER_VOCABULARY) 
 
-create_pretraining_dataset(PATH, SEQUENCE_LENGTH, tokenizer)
+# create_pretraining_dataset(PATH, SEQUENCE_LENGTH, tokenizer)
+
+create_glue_dataset(PATH, SEQUENCE_LENGTH, tokenizer, 'cola')
+# create_glue_dataset(PATH, SEQUENCE_LENGTH, tokenizer, 'mnli')
+# create_glue_dataset(PATH, SEQUENCE_LENGTH, tokenizer, 'mrpc')
+# create_glue_dataset(PATH, SEQUENCE_LENGTH, tokenizer, 'qnli')
+# create_glue_dataset(PATH, SEQUENCE_LENGTH, tokenizer, 'qqp')
+# create_glue_dataset(PATH, SEQUENCE_LENGTH, tokenizer, 'rte')
+# create_glue_dataset(PATH, SEQUENCE_LENGTH, tokenizer, 'sst2')
+# create_glue_dataset(PATH, SEQUENCE_LENGTH, tokenizer, 'stsb')
+# create_glue_dataset(PATH, SEQUENCE_LENGTH, tokenizer, 'wnli')
