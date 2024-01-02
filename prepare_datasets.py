@@ -1,7 +1,7 @@
 import os
 from datasets import load_dataset
 import random
-from dataset import OneSentenceDataset
+from dataset import OneSentenceDataset, TwoSentencesDataset
 from tokenizer import load_tokenizer
 import torch
 
@@ -38,8 +38,10 @@ def create_glue_dataset(path, seq_len, tokenizer, task_name):
     dataset = load_dataset('glue', task_name)
     train_dataset = dataset['train']
     test_dataset = dataset[test_dataset_name]
+
+    datasets = [train_dataset, test_dataset]
     
-    if task_name == 'wnli':
+    if task_name == 'stsb':
         n_classes = 5
     else:
         n_classes = len(train_dataset.features['label'].names)
@@ -49,24 +51,59 @@ def create_glue_dataset(path, seq_len, tokenizer, task_name):
     if n_sentences_task == 1:
         sentence_key, label_key = column_names[0], column_names[1]
         
-        sentences = []
-        labels = []
+        for i, d in enumerate(datasets):
+            sentences = []
+            labels = []
 
-        for row in train_dataset:
-            sentence = row[sentence_key]
-            label = row[label_key]
-            tokenized_sentence = tokenize_sentence(sentence, seq_len, tokenizer)
+            for row in d:
+                sentence = row[sentence_key]
+                label = row[label_key]
+                tokenized_sentence = tokenize_sentence(sentence, seq_len, tokenizer)
 
-            sentences.append(tokenized_sentence)
-            labels.append(torch.tensor(label))
-        
-        dataset = (sentences, labels)
-        dataset = OneSentenceDataset(dataset, n_classes)
-        print(len(dataset))
+                sentences.append(tokenized_sentence)
+                labels.append(torch.tensor(label))
+            
+            d = (sentences, labels)
+            d = OneSentenceDataset(dataset, n_classes)
+
+            if i == 0:
+                torch.save(dataset, path + f'/{task_name}_train_dataset.pt')
+            else:
+                torch.save(dataset, path + f'/{task_name}_test_dataset.pt')
         
     elif n_sentences_task == 2:
          sentence1_key, sentence2_key, label_key = column_names[0], column_names[1], column_names[2]
-         print(len(train_dataset))
+
+         for i, d in enumerate(datasets):
+            first_sentences = []
+            second_sentences = []
+            labels = []
+
+            for row in d:
+                first_sentence = row[sentence1_key]
+                second_sentence = row[sentence2_key]
+                if task_name == 'stsb':
+                    label = round(row[label_key])
+                    if label == 0:
+                        label = 1
+                else:
+                    label = row[label_key]
+                tokenized_first_sentence = tokenize_sentence(first_sentence, seq_len, tokenizer)
+                tokenized_second_sentence = tokenize_sentence(second_sentence, seq_len, tokenizer)
+
+                first_sentences.append(tokenized_first_sentence)
+                second_sentences.append(tokenized_second_sentence)
+                labels.append(torch.tensor(label))
+            
+            d = (first_sentences, second_sentences, labels)
+            d = TwoSentencesDataset(dataset, n_classes)
+
+            if i == 0:
+                torch.save(dataset, path + f'/{task_name}_train_dataset.pt')
+            else:
+                torch.save(dataset, path + f'/{task_name}_test_dataset.pt')
+    
+    print(f'Successfully saved {task_name} datasets!')
     pass
 
 
@@ -128,12 +165,11 @@ def create_pretraining_dataset(path, seq_len, tokenizer):
         
         sentences.append(tokenized_txt)
         masks.append(masked_tokens)
-        i += 1
-        print(i)
     
     dataset = (sentences, masks)
     dataset = OneSentenceDataset(dataset)
-    torch.save(dataset, PATH + '/pretraining_dataset.pt')
+    torch.save(dataset, path + '/pretraining_dataset.pt')
+    print('Successfully saved pretraining dataset!')
     pass
 
 
@@ -149,12 +185,12 @@ tokenizer = load_tokenizer(TOKENIZER_BATCH_SIZE, TOKENIZER_VOCABULARY)
 
 # create_pretraining_dataset(PATH, SEQUENCE_LENGTH, tokenizer)
 
-create_glue_dataset(PATH, SEQUENCE_LENGTH, tokenizer, 'cola')
+# create_glue_dataset(PATH, SEQUENCE_LENGTH, tokenizer, 'cola')
 # create_glue_dataset(PATH, SEQUENCE_LENGTH, tokenizer, 'mnli')
 # create_glue_dataset(PATH, SEQUENCE_LENGTH, tokenizer, 'mrpc')
 # create_glue_dataset(PATH, SEQUENCE_LENGTH, tokenizer, 'qnli')
 # create_glue_dataset(PATH, SEQUENCE_LENGTH, tokenizer, 'qqp')
 # create_glue_dataset(PATH, SEQUENCE_LENGTH, tokenizer, 'rte')
 # create_glue_dataset(PATH, SEQUENCE_LENGTH, tokenizer, 'sst2')
-# create_glue_dataset(PATH, SEQUENCE_LENGTH, tokenizer, 'stsb')
+create_glue_dataset(PATH, SEQUENCE_LENGTH, tokenizer, 'stsb')
 # create_glue_dataset(PATH, SEQUENCE_LENGTH, tokenizer, 'wnli')
