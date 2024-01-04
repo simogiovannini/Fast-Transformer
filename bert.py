@@ -6,9 +6,9 @@ from multi_head_attention import MultiHeadAttentionLayer
 
 class EncoderLayer(nn.Module):
 
-    def __init__(self, d_model, h, d_ff, dropout):
+    def __init__(self, d_model, h, d_ff, dropout, attention_type='full', n_clusters=25):
         super().__init__()
-        self.mha = MultiHeadAttentionLayer(d_model, h, dropout)
+        self.mha = MultiHeadAttentionLayer(d_model, h, dropout, attention_type, n_clusters)
         self.norm1 = nn.LayerNorm(d_model)
         self.linear = FeedForwardLayer(d_model, d_ff, dropout)
         self.norm2 = nn.LayerNorm(d_model)
@@ -23,10 +23,10 @@ class EncoderLayer(nn.Module):
 
 class BERTModel(nn.Module):
 
-    def __init__(self, vocab_size, d_model, seq_len, n_layers, h, d_ff, dropout):
+    def __init__(self, vocab_size, d_model, seq_len, n_layers, h, d_ff, dropout, attention_type='full', n_clusters=25):
         super().__init__()
         self.embedding = EmbeddingLayer(vocab_size, d_model, seq_len, dropout)
-        self.encoder_layers = nn.ModuleList([EncoderLayer(d_model, h, d_ff, dropout) for _ in range(n_layers)])
+        self.encoder_layers = nn.ModuleList([EncoderLayer(d_model, h, d_ff, dropout, attention_type, n_clusters) for _ in range(n_layers)])
 
     def forward(self, x):
         mask = (x > 0).unsqueeze(1).repeat(1, x.size(1), 1).unsqueeze(1)
@@ -40,9 +40,9 @@ class BERTModel(nn.Module):
 
 class TokenPredictionHead(nn.Module):
 
-    def __init__(self, vocab_size, d_model, seq_len, n_layers, h, d_ff, dropout):
+    def __init__(self, vocab_size, d_model, seq_len, n_layers, h, d_ff, dropout, attention_type='full'):
         super().__init__()
-        self.bert = BERTModel(vocab_size, d_model, seq_len, n_layers, h, d_ff, dropout)
+        self.bert = BERTModel(vocab_size, d_model, seq_len, n_layers, h, d_ff, dropout, attention_type)
         self.linear = nn.Linear(d_model, vocab_size)
         self.log_softmax = nn.LogSoftmax(2)
     

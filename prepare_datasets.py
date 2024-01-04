@@ -63,13 +63,13 @@ def create_glue_dataset(path, seq_len, tokenizer, task_name):
                 sentences.append(tokenized_sentence)
                 labels.append(torch.tensor(label))
             
-            d = (sentences, labels)
-            d = OneSentenceDataset(dataset, n_classes)
+            d_pair = (sentences, labels)
+            d_pair = OneSentenceDataset(d_pair, n_classes)
 
             if i == 0:
-                torch.save(dataset, path + f'/{task_name}_train_dataset.pt')
+                torch.save(d_pair, path + f'/{task_name}_train_dataset_{seq_len}.pt')
             else:
-                torch.save(dataset, path + f'/{task_name}_test_dataset.pt')
+                torch.save(d_pair, path + f'/{task_name}_test_dataset_{seq_len}.pt')
         
     elif n_sentences_task == 2:
          sentence1_key, sentence2_key, label_key = column_names[0], column_names[1], column_names[2]
@@ -95,13 +95,13 @@ def create_glue_dataset(path, seq_len, tokenizer, task_name):
                 second_sentences.append(tokenized_second_sentence)
                 labels.append(torch.tensor(label))
             
-            d = (first_sentences, second_sentences, labels)
-            d = TwoSentencesDataset(dataset, n_classes)
+            d_triplet = (first_sentences, second_sentences, labels)
+            d_triplet = TwoSentencesDataset(d_triplet, n_classes)
 
             if i == 0:
-                torch.save(dataset, path + f'/{task_name}_train_dataset.pt')
+                torch.save(d_triplet, path + f'/{task_name}_train_dataset_{seq_len}.pt')
             else:
-                torch.save(dataset, path + f'/{task_name}_test_dataset.pt')
+                torch.save(d_triplet, path + f'/{task_name}_test_dataset_{seq_len}.pt')
     
     print(f'Successfully saved {task_name} datasets!')
     pass
@@ -140,13 +140,12 @@ def mask_and_replace_tokens(sentence, tokenizer):
 
 
 def create_pretraining_dataset(path, seq_len, tokenizer):
+    print('Preparing pretraining dataset...')
     dataset = load_dataset('wikitext', 'wikitext-2-v1')
     all_valid_texts = [txt for k in dataset.keys() for txt in dataset[k]['text'] if len(txt) > 0 and not txt.startswith(" =")]
     all_valid_texts = [txt for _ in range(4) for txt in all_valid_texts]
-    print(len(all_valid_texts))
     sentences = []
     masks = []
-    i = 0
     for txt in all_valid_texts:
         tokenized_txt, masked_tokens = mask_and_replace_tokens(txt, tokenizer)
         
@@ -168,13 +167,13 @@ def create_pretraining_dataset(path, seq_len, tokenizer):
     
     dataset = (sentences, masks)
     dataset = OneSentenceDataset(dataset)
-    torch.save(dataset, path + '/pretraining_dataset.pt')
+    torch.save(dataset, path + f'/pretraining_dataset_{seq_len}.pt')
     print('Successfully saved pretraining dataset!')
     pass
 
 
 PATH = './datasets/'
-SEQUENCE_LENGTH = 512
+SEQUENCE_LENGTH = 128
 TOKENIZER_BATCH_SIZE = 256
 TOKENIZER_VOCABULARY = 25000
 
@@ -185,12 +184,12 @@ tokenizer = load_tokenizer(TOKENIZER_BATCH_SIZE, TOKENIZER_VOCABULARY)
 
 # create_pretraining_dataset(PATH, SEQUENCE_LENGTH, tokenizer)
 
-# create_glue_dataset(PATH, SEQUENCE_LENGTH, tokenizer, 'cola')
-# create_glue_dataset(PATH, SEQUENCE_LENGTH, tokenizer, 'mnli')
-# create_glue_dataset(PATH, SEQUENCE_LENGTH, tokenizer, 'mrpc')
-# create_glue_dataset(PATH, SEQUENCE_LENGTH, tokenizer, 'qnli')
-# create_glue_dataset(PATH, SEQUENCE_LENGTH, tokenizer, 'qqp')
-# create_glue_dataset(PATH, SEQUENCE_LENGTH, tokenizer, 'rte')
-# create_glue_dataset(PATH, SEQUENCE_LENGTH, tokenizer, 'sst2')
+create_glue_dataset(PATH, SEQUENCE_LENGTH, tokenizer, 'cola')
+create_glue_dataset(PATH, SEQUENCE_LENGTH, tokenizer, 'mnli')
+create_glue_dataset(PATH, SEQUENCE_LENGTH, tokenizer, 'mrpc')
+create_glue_dataset(PATH, SEQUENCE_LENGTH, tokenizer, 'qnli')
+create_glue_dataset(PATH, SEQUENCE_LENGTH, tokenizer, 'qqp')
+create_glue_dataset(PATH, SEQUENCE_LENGTH, tokenizer, 'rte')
+create_glue_dataset(PATH, SEQUENCE_LENGTH, tokenizer, 'sst2')
 create_glue_dataset(PATH, SEQUENCE_LENGTH, tokenizer, 'stsb')
-# create_glue_dataset(PATH, SEQUENCE_LENGTH, tokenizer, 'wnli')
+create_glue_dataset(PATH, SEQUENCE_LENGTH, tokenizer, 'wnli')

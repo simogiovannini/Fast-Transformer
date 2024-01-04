@@ -11,7 +11,7 @@ DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 TOKENIZER_BATCH_SIZE = 256  # Batch-size to train the tokenizer on
 TOKENIZER_VOCABULARY = 25000  # Total number of unique subwords the tokenizer can have
 
-MAX_LENGTH = 512  # Maximum number of tokens in an input sample after padding
+MAX_LENGTH = 128  # Maximum number of tokens in an input sample after padding
 
 EMBEDDING_SIZE = 512
 
@@ -29,11 +29,11 @@ LEARNING_RATE = 1e-4  # Learning rate for training the model
 
 tokenizer = load_tokenizer(TOKENIZER_BATCH_SIZE, TOKENIZER_VOCABULARY) 
 
-dataset = load_dataset('./datasets/pretraining_dataset.pt')
+dataset = load_dataset(f'./datasets/pretraining_dataset_{MAX_LENGTH}.pt')
 
 train_loader = DataLoader(dataset, batch_size=TRAIN_BATCH_SIZE, shuffle=True, pin_memory=True)
 
-model = TokenPredictionHead(TOKENIZER_VOCABULARY, EMBEDDING_SIZE, MAX_LENGTH, N_LAYERS, N_HEADS, D_FF, DROPOUT)
+model = TokenPredictionHead(TOKENIZER_VOCABULARY, EMBEDDING_SIZE, MAX_LENGTH, N_LAYERS, N_HEADS, D_FF, DROPOUT, attention_type='clustered')
 model.to(DEVICE)
 
 pytorch_total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -52,7 +52,7 @@ for epoch in range(TRAIN_EPOCHS):
 
         features, labels = data[0].to(DEVICE), data[1].to(DEVICE)
 
-        output = model.forward(labels)
+        output = model.forward(features)
 
         loss = criterion(output.transpose(1, 2), labels)
 

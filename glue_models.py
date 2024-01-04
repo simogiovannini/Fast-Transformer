@@ -41,5 +41,3 @@ class TwoSentencesModel(nn.Module):
         x = self.relu(x)
         x = self.linear2(x)
         return x
-
-
