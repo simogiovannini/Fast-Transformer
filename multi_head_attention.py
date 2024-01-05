@@ -6,7 +6,7 @@ from torch_kmeans import KMeans
 
 class MultiHeadAttentionLayer(nn.Module):
 
-    def __init__(self, d_model, h, dropout, attention_type='full', n_clusters = 25):
+    def __init__(self, d_model, h, dropout, attention_type='full', n_clusters=25):
         super().__init__()
         self.d_model = d_model 
         self.h = h
@@ -21,88 +21,79 @@ class MultiHeadAttentionLayer(nn.Module):
         self.attention_type = attention_type
         self.n_clusters = n_clusters
 
+
     @staticmethod
-    def full_attention(query, key, value, mask, dropout):
+    def full_attention(query, key, value, dropout):
         d_k = query.shape[-1]
         
         attention_scores = (query @ key.transpose(-2, -1)) / math.sqrt(d_k)
-        if mask is not None:
-            attention_scores.masked_fill_(mask == 0, -1e9)
+
         attention_scores = attention_scores.softmax(dim=-1)
         if dropout is not None:
             attention_scores = dropout(attention_scores)
-
-        return (attention_scores @ value)
+        
+        result = attention_scores @ value
+        return result
+    
 
     @staticmethod
-    def clustered_attention(query, key, value, mask, dropout, n_clusters):
+    def clustered_attention(query, key, value, dropout, n_clusters):
         d_k = query.shape[-1]
-        R = torch.nn.functional.normalize(torch.randn(d_k, 32, device=query.device), dim=0)
+        R = torch.nn.functional.normalize(torch.randn(d_k, 16, device=query.device), dim=0)
         low_dim = query @ R
-        hash = torch.where(low_dim > 0, 1, 0).double().to(query.device)
+        hash = (low_dim > 0).float().to(query.device)
         
-        clustering = KMeans(n_clusters=n_clusters, verbose=False, num_init=1, p_norm=1)
-        centroids = torch.empty(query.shape[0], query.shape[1], n_clusters, query.shape[3]).to(query.device)
-        labels = torch.empty(query.shape[0], query.shape[1], query.shape[2]).long().to(query.device)
-        for i, s in enumerate(hash):
-            result = clustering(s)
-            curr_labels = result.labels
-            labels[i] = curr_labels
-            for j, head in enumerate(curr_labels):
-                for id_cluster in range(n_clusters):
-                    filter = (head == id_cluster).nonzero(as_tuple=True)
-                    centroids[i][j][id_cluster] = torch.mean(query[i][j][filter], dim=0)
+        kmeans = KMeans(n_clusters=n_clusters, num_init=1, p_norm=1, verbose=False)
 
+        centroids = torch.zeros(query.shape[0], query.shape[1], n_clusters, query.shape[3], requires_grad=True).to(query.device)
+        labels = torch.zeros(query.shape[0], query.shape[1], query.shape[2]).long().to(query.device)
+        
+        for i in range(len(hash)):
+            for j in range(len(hash[i])):
+                clust_res = kmeans(hash[i][j].unsqueeze(0)).labels.squeeze(0)
+                labels[i][j] = clust_res
+                for c in range(n_clusters):
+                    filter = (clust_res == c).nonzero(as_tuple=True)
+                    if len(filter[0]) > 0:
+                        centroid = query[i][j][filter].mean(dim=0)
+                    else:
+                        centroid = torch.zeros(d_k).to(query.device)
+                    centroids[i][j][c] = centroid
+                    
         attention_scores = (centroids @ key.transpose(-2, -1)) / math.sqrt(d_k)
+        
         attention_scores = attention_scores.softmax(dim=-1)
-
         if dropout is not None:
             attention_scores = dropout(attention_scores)
-            
+
         attention_scores = attention_scores @ value
-        broadcasted_attention_scores = torch.empty(query.shape[0], query.shape[1], query.shape[2], query.shape[3]).to(query.device)
 
-        for i in range(broadcasted_attention_scores.shape[0]):
-            for j in range(broadcasted_attention_scores.shape[1]):
-                broadcasted_attention_scores[i][j] = attention_scores[i][j][labels[i][j]]
-                
+        broadcasted_attention_scores = torch.zeros(query.shape[0], query.shape[1], query.shape[2], query.shape[3], requires_grad=True).to(query.device)
+
+        for i in range(len(broadcasted_attention_scores)):
+            for j in range(len(broadcasted_attention_scores[i])):
+                for k in range(len(broadcasted_attention_scores[i][j])):
+                    cluster_id = labels[i][j][k].item()
+                    broadcasted_attention_scores[i][j][k] = attention_scores[i][j][cluster_id]
+                    
         return broadcasted_attention_scores
+    
 
-    def forward(self, x, mask):
+    def forward(self, x):
         query = self.w_q(x)
         key = self.w_k(x)
-        value = self.w_v(x)
-
-        print('pre')
-        print(query.shape)
-        print(key.shape)
-        print(value.shape)
+        value = self.w_v(x)  
 
         query = query.view(query.shape[0], query.shape[1], self.h, self.d_k).transpose(1, 2)
         key = key.view(key.shape[0], key.shape[1], self.h, self.d_k).transpose(1, 2)
         value = value.view(value.shape[0], value.shape[1], self.h, self.d_k).transpose(1, 2)
 
-        print('post')
-        print(query.shape)
-        print(key.shape)
-        print(value.shape)
-
-        print('mask')
-        print(mask.shape)
-
         if self.attention_type == 'full':
-            x = MultiHeadAttentionLayer.full_attention(query, key, value, mask, self.dropout)
+            x = MultiHeadAttentionLayer.full_attention(query, key, value, self.dropout)
         elif self.attention_type == 'clustered':
-            x = MultiHeadAttentionLayer.clustered_attention(query, key, value, mask, self.dropout, self.n_clusters)
+            x = MultiHeadAttentionLayer.clustered_attention(query, key, value, self.dropout, self.n_clusters)
         elif self.attention_type == 'improved-clustered':
-            x = MultiHeadAttentionLayer.improved_clustered_attention(query, key, value, mask, self.dropout)
+            x = MultiHeadAttentionLayer.improved_clustered_attention(query, key, value, self.dropout)
 
-        print('res')
-        print(x.shape)
         x = x.transpose(1, 2).contiguous().view(x.shape[0], -1, self.h * self.d_k)
-        print('final')
-        print(x.shape)
-        print('merged')
-        print(self.w_o(x).shape)
-
         return self.w_o(x)

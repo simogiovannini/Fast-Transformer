@@ -17,19 +17,19 @@ EMBEDDING_SIZE = 512
 
 DROPOUT = 0.1
 
-N_HEADS = 8
+N_HEADS = 4
 
-N_LAYERS = 12
+N_LAYERS = 8
 
 D_FF = EMBEDDING_SIZE * 4
 
 TRAIN_BATCH_SIZE = 8  # Batch-size for pretraining the model on
-TRAIN_EPOCHS = 10  # Maximum number of epochs to train the model for
+TRAIN_EPOCHS = 30  # Maximum number of epochs to train the model for
 LEARNING_RATE = 1e-4  # Learning rate for training the model
 
 tokenizer = load_tokenizer(TOKENIZER_BATCH_SIZE, TOKENIZER_VOCABULARY) 
 
-dataset = load_dataset(f'./datasets/pretraining_dataset_{MAX_LENGTH}.pt')
+dataset = load_dataset(f'./datasets/tiny_pretraining_dataset_{MAX_LENGTH}.pt')
 
 train_loader = DataLoader(dataset, batch_size=TRAIN_BATCH_SIZE, shuffle=True, pin_memory=True)
 
