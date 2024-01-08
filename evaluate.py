@@ -1,6 +1,7 @@
 import torch
 from datasets import load_dataset
-from glue_models import OneSentenceDataset, OneSentenceModel, TwoSentencesDataset, TwoSentencesModel
+from dataset import OneSentenceDataset, TwoSentencesDataset
+from glue_models import OneSentenceModel, TwoSentencesModel
 from tokenizer import load_tokenizer
 from torch.optim import Adam
 from torch.utils.data import DataLoader
