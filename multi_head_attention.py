@@ -3,6 +3,7 @@ import torch.nn as nn
 import math
 from torch_kmeans import KMeans
 
+from cluster_plotter import ClusterPlotter
 
 class MultiHeadAttentionLayer(nn.Module):
 
@@ -22,8 +23,7 @@ class MultiHeadAttentionLayer(nn.Module):
         self.n_clusters = n_clusters
 
 
-    @staticmethod
-    def full_attention(query, key, value, dropout):
+    def full_attention(self, query, key, value, dropout):
         d_k = query.shape[-1]
         
         attention_scores = (query @ key.transpose(-2, -1)) / math.sqrt(d_k)
@@ -32,12 +32,10 @@ class MultiHeadAttentionLayer(nn.Module):
         if dropout is not None:
             attention_scores = dropout(attention_scores)
         
-        result = attention_scores @ value
-        return result
+        return attention_scores @ value
     
 
-    @staticmethod
-    def compute_clustered_attention_scores(query, key, dropout, n_clusters):
+    def compute_clustered_attention_scores(self, query, key, dropout, n_clusters):
         d_k = query.shape[-1]
         R = torch.nn.functional.normalize(torch.randn(d_k, 16, device=query.device), dim=0)
         low_dim = query @ R
@@ -60,18 +58,20 @@ class MultiHeadAttentionLayer(nn.Module):
                         centroid = torch.zeros(d_k).to(query.device)
                     centroids[i][j][c] = centroid
 
+        if self.attention_type == 'clustered':
+            ClusterPlotter.plot_clusters(labels[0][0], query[0][0])
+
         attention_scores = (centroids @ key.transpose(-2, -1)) / math.sqrt(d_k)
         
         attention_scores = attention_scores.softmax(dim=-1)
-        # if dropout is not None:
-            # attention_scores = dropout(attention_scores)
+        if dropout is not None:
+            attention_scores = dropout(attention_scores)
                     
         return attention_scores, labels
 
 
-    @staticmethod
-    def clustered_attention(query, key, value, dropout, n_clusters):
-        attention_scores, labels = MultiHeadAttentionLayer.compute_clustered_attention_scores(query, key, dropout, n_clusters)
+    def clustered_attention(self, query, key, value, dropout, n_clusters):
+        attention_scores, labels = self.compute_clustered_attention_scores(query, key, dropout, n_clusters)
         attention_scores = attention_scores @ value
 
         broadcasted_attention_scores = torch.zeros(query.shape[0], query.shape[1], query.shape[2], query.shape[3], requires_grad=True).to(query.device)
@@ -85,27 +85,37 @@ class MultiHeadAttentionLayer(nn.Module):
         return broadcasted_attention_scores
     
 
-    @staticmethod
-    def improved_clustered_attention(query, key, value, dropout, n_clusters):
+    def improved_clustered_attention(self, query, key, value, dropout, n_clusters):
         d_k = query.shape[-1]
         num_top_keys = 32
         
-        attention_scores, labels = MultiHeadAttentionLayer.compute_clustered_attention_scores(query, key, dropout, n_clusters)
-        print(attention_scores.shape)
-        print(labels.shape)
+        attention_scores, labels = self.compute_clustered_attention_scores(query, key, dropout, n_clusters)
         improved_attention_scores = torch.empty(attention_scores.shape[0], attention_scores.shape[1], attention_scores.shape[-1], attention_scores.shape[-1]).to(attention_scores.device)
-        top_keys_indices = torch.empty(attention_scores.shape[0], attention_scores.shape[1], attention_scores.shape[2], num_top_keys).to(attention_scores.device)
-        clusters_mass = torch.empty(attention_scores.shape[0], attention_scores.shape[1], attention_scores.shape[2]).to(attention_scores.device)
 
-        for i in range(len(attention_scores)):
-            for j in range(len(attention_scores[i])):
-                for k in range(len(attention_scores[i][j])):
-                    top_keys = torch.topk(attention_scores[i][j][k], num_top_keys)
-                    top_keys_indices[i][j][k] = top_keys.indices
-                    clusters_mass[i][j][k] = top_keys.values.sum()
+        for i in range(len(improved_attention_scores)):
+            for j in range(len(improved_attention_scores[i])):
+                for k in range(len(improved_attention_scores[i][j])):
+                    cluster_id = labels[i][j][k]
+                    top_keys_res = torch.topk(attention_scores[i][j][cluster_id], num_top_keys)
+                    cluster_mass = top_keys_res.values.sum()
+                    top_keys = top_keys_res.indices
+                    top_keys_matrix = torch.empty(top_keys.shape[0], key.shape[-1]).to(query.device)
+                    for e, index in enumerate(top_keys):
+                        idx = index.int().item()
+                        top_keys_matrix[e] = key[i][j][idx]
+                    
+                    q = query[i][j][k]
+                    query_key_attention = (q @ top_keys_matrix.T) / math.sqrt(d_k)
+                    query_key_attention = query_key_attention.softmax(dim=0) * cluster_mass
 
-        
-        pass
+                    improved_attention_scores[i][j][k] = attention_scores[i][j][cluster_id]
+                    for idx, p in enumerate(top_keys):
+                        p = p.int().item()
+                        improved_attention_scores[i][j][k][p] = query_key_attention[idx]
+
+        improved_attention_scores = improved_attention_scores @ value
+        return improved_attention_scores
+
 
     def forward(self, x):
         query = self.w_q(x)
@@ -117,11 +127,11 @@ class MultiHeadAttentionLayer(nn.Module):
         value = value.view(value.shape[0], value.shape[1], self.h, self.d_k).transpose(1, 2)
 
         if self.attention_type == 'full':
-            x = MultiHeadAttentionLayer.full_attention(query, key, value, self.dropout)
+            x = self.full_attention(query, key, value, self.dropout)
         elif self.attention_type == 'clustered':
-            x = MultiHeadAttentionLayer.clustered_attention(query, key, value, self.dropout, self.n_clusters)
+            x = self.clustered_attention(query, key, value, self.dropout, self.n_clusters)
         elif self.attention_type == 'improved_clustered':
-            x = MultiHeadAttentionLayer.improved_clustered_attention(query, key, value, self.dropout, self.n_clusters)
+            x = self.improved_clustered_attention(query, key, value, self.dropout, self.n_clusters)
         else:
             print('No valid attention type selected')
 

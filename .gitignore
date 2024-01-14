@@ -3,3 +3,6 @@ tokenizer/
 prova/
 models/
 datasets/
+runs/
+cluster_plots/
+test.py

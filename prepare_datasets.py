@@ -8,8 +8,7 @@ import torch
 
 def tokenize_sentence(sentence, seq_len, tokenizer):
     tokens = tokenizer(sentence)
-    tokens = tokens[1:-1]
-
+    tokens = tokens.input_ids[1:-1]
     if len(tokens) > (seq_len - 2):
             tokens = tokens[:seq_len - 2]
         
@@ -58,6 +57,7 @@ def create_glue_dataset(path, seq_len, tokenizer, task_name):
             for row in d:
                 sentence = row[sentence_key]
                 label = row[label_key]
+
                 tokenized_sentence = tokenize_sentence(sentence, seq_len, tokenizer)
 
                 sentences.append(tokenized_sentence)
@@ -173,7 +173,7 @@ def create_pretraining_dataset(path, seq_len, tokenizer):
 
 
 PATH = './datasets/'
-SEQUENCE_LENGTH = 128
+SEQUENCE_LENGTH = 64
 TOKENIZER_BATCH_SIZE = 256
 TOKENIZER_VOCABULARY = 25000
 
@@ -182,14 +182,14 @@ if not os.path.exists(PATH):
 
 tokenizer = load_tokenizer(TOKENIZER_BATCH_SIZE, TOKENIZER_VOCABULARY) 
 
-create_pretraining_dataset(PATH, SEQUENCE_LENGTH, tokenizer)
+# create_pretraining_dataset(PATH, SEQUENCE_LENGTH, tokenizer)
 
-#create_glue_dataset(PATH, SEQUENCE_LENGTH, tokenizer, 'cola')
-#create_glue_dataset(PATH, SEQUENCE_LENGTH, tokenizer, 'mnli')
-#create_glue_dataset(PATH, SEQUENCE_LENGTH, tokenizer, 'mrpc')
-#create_glue_dataset(PATH, SEQUENCE_LENGTH, tokenizer, 'qnli')
-#create_glue_dataset(PATH, SEQUENCE_LENGTH, tokenizer, 'qqp')
-#create_glue_dataset(PATH, SEQUENCE_LENGTH, tokenizer, 'rte')
-#create_glue_dataset(PATH, SEQUENCE_LENGTH, tokenizer, 'sst2')
-#create_glue_dataset(PATH, SEQUENCE_LENGTH, tokenizer, 'stsb')
-#create_glue_dataset(PATH, SEQUENCE_LENGTH, tokenizer, 'wnli')
+create_glue_dataset(PATH, SEQUENCE_LENGTH, tokenizer, 'cola')
+# create_glue_dataset(PATH, SEQUENCE_LENGTH, tokenizer, 'mnli')
+create_glue_dataset(PATH, SEQUENCE_LENGTH, tokenizer, 'mrpc')
+# create_glue_dataset(PATH, SEQUENCE_LENGTH, tokenizer, 'qnli')
+# create_glue_dataset(PATH, SEQUENCE_LENGTH, tokenizer, 'qqp')
+# create_glue_dataset(PATH, SEQUENCE_LENGTH, tokenizer, 'rte')
+# create_glue_dataset(PATH, SEQUENCE_LENGTH, tokenizer, 'sst2')
+# create_glue_dataset(PATH, SEQUENCE_LENGTH, tokenizer, 'stsb')
+# create_glue_dataset(PATH, SEQUENCE_LENGTH, tokenizer, 'wnli')

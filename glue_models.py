@@ -5,10 +5,10 @@ from torch.utils.data import Dataset
 
 
 class OneSentenceModel(nn.Module):
-    def __init__(self, pretrained_model, n_classes, n_hidden=1024):
+    def __init__(self, bert_model, n_classes, n_hidden=1024):
         super().__init__()
-        self.bert = copy.deepcopy(pretrained_model)
-        self.linear1 = nn.Linear(pretrained_model.encoder_layers[0].linear.linear1.in_features, n_hidden)
+        self.bert = bert_model
+        self.linear1 = nn.Linear(bert_model.encoder_layers[0].linear.linear1.in_features, n_hidden)
         self.relu = nn.ReLU()
         self.linear2 = nn.Linear(n_hidden, n_classes)
     
@@ -22,10 +22,10 @@ class OneSentenceModel(nn.Module):
     
 
 class TwoSentencesModel(nn.Module):
-    def __init__(self, pretrained_model, n_classes, n_hidden=1024):
+    def __init__(self, bert_model, n_classes, n_hidden=1024):
         super().__init__()
-        self.bert = copy.deepcopy(pretrained_model)
-        self.linear1 = nn.Linear(2 * pretrained_model.encoder_layers[0].linear.linear1.in_features, n_hidden)
+        self.bert = bert_model
+        self.linear1 = nn.Linear(2 * bert_model.encoder_layers[0].linear.linear1.in_features, n_hidden)
         self.relu = nn.ReLU()
         self.linear2 = nn.Linear(n_hidden, n_classes)
     
